@@ -97,5 +97,47 @@ describe("Token", () => {
             });
         }); // Describe Failure
     }); // Describe Sending Tokens
+
+    describe("Approving Tokens", () => {
+        const AMOUNT = tokens(100);
+        
+        describe("Success", () => {
+            it("allocates an allowance for delegated token spending", async() => {
+                const { token, deployer, exchange } = await loadFixture(deployTokenFixture);
+
+                // Do transfer
+                const transaction = await token.connect(deployer).approve(exchange.address, AMOUNT);
+                await transaction.wait();
+                
+                expect(await token.allowance(deployer.address, exchange.address)).to.equal(AMOUNT);               
+
+            });
+
+            it("emits an Approval event", async() => {
+                const { token, deployer, exchange } = await loadFixture(deployTokenFixture);
+
+                // Do transfer
+                const transaction = await token.connect(deployer).approve(exchange.address, AMOUNT);
+                await transaction.wait();            
+                
+                await expect(transaction).to.emit(token, "Approval")
+                    .withArgs(deployer.address, exchange.address, AMOUNT);
+            });
+            
+        }); // Describe Success
+        
+        describe("Failure", () => {
+            it("rejects invalid spenders", async() => {
+                const { token, deployer, receiver } = await loadFixture(deployTokenFixture);
+
+                const INVALID_ADDRESS = "0x0000000000000000000000000000000000000000";
+                const ERROR = "Token: Recipient is address 0";
+
+                await expect(token.connect(deployer)
+                    .approve(INVALID_ADDRESS, AMOUNT))
+                    .to.be.revertedWith(ERROR);
+            });
+        }); // Describe Failure
+    }); // Describe Approving Tokens
     
 }); // Describe Token
