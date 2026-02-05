@@ -31,7 +31,7 @@
     },
     "window.commandCenter": false,
     // "workbench.colorTheme": "Default Dark+",
-    "workbench.colorTheme": "Monokai",
+    // "workbench.colorTheme": "Monokai",
     "window.zoomLevel": 2,
     "python.linting.pylintArgs": [
         "--disable=C0111"
