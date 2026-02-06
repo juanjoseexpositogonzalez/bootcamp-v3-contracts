@@ -30,18 +30,27 @@ contract Token {
     ) public returns (bool success) {
         // 0. Require caller's account balance to be greater than or equal to _value
         require(balanceOf[msg.sender] >= _value, "Token: Insufficient Funds");
-        require(_to != address(0), "Token: Recipient is address 0");
 
-        // 1. Deduct tokens from sender
-        balanceOf[msg.sender] -= _value;
-
-        // 2. Credit tokens to recipient
-        balanceOf[_to] += _value;
-
+        _transfer(msg.sender, _to, _value);
+        
         // 3. Emit Transfer Event
         emit Transfer(msg.sender, _to, _value);
 
         return true;
+    }
+
+    function _transfer(
+        address _from,
+        address _to,
+        uint256 _value
+    ) internal {
+
+        require(_to != address(0), "Token: Recipient is address 0");
+        // 1. Deduct tokens from sender
+        balanceOf[_from] -= _value;
+
+        // 2. Credit tokens to recipient
+        balanceOf[_to] += _value;
     }
 
     function approve(
@@ -58,4 +67,25 @@ contract Token {
         
         return true;
     }
+
+    function transferFrom(
+        address _from,
+        address _to,
+        uint256 _value
+    ) public returns (bool success) {
+
+        require(_value <= balanceOf[_from], "Token: Insufficient Funds");
+        require(
+            _value <= allowance[_from][msg.sender],
+            "Token: Insufficient Allowance");
+
+        // Reset allowance
+        allowance[_from][msg.sender] -= _value;
+
+        _transfer(_from, _to, _value);
+
+        emit Transfer(_from, _to, _value);
+
+        return true;
+     }
 }
