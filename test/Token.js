@@ -2,7 +2,7 @@ const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helper
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-const { deployTokenFixture } = require("./helpers/TokenFixtures")
+const { deployTokenFixture, transferFromTokenFixture } = require("./helpers/TokenFixtures")
 
 
 const tokens = (n) => {
@@ -139,5 +139,60 @@ describe("Token", () => {
             });
         }); // Describe Failure
     }); // Describe Approving Tokens
+
+    describe("Delegating Token Transfers", () => {
+        const AMOUNT = tokens(100);
+        
+        describe("Success", () => {
+            it("transfer token balances", async() => {
+                const { token, deployer, receiver } = await loadFixture(transferFromTokenFixture);
+
+                expect(await token.balanceOf(deployer.address)).to.equal(tokens(999900));
+                expect(await token.balanceOf(receiver.address)).to.equal(AMOUNT);
+
+            });
+
+            it("resets the allowance", async() => {
+                const { token, deployer, exchange } = await loadFixture(transferFromTokenFixture);
+                expect(await token.allowance(deployer.address, exchange.address)).to.equal(0);                
+
+            });
+
+            it("emits a Transfer event", async() => {
+                const { token, deployer, receiver, transaction } = await loadFixture(transferFromTokenFixture);
+                
+                await expect(transaction).to.emit(token, "Transfer")
+                    .withArgs(deployer.address, receiver.address, AMOUNT);
+            });
+            
+        }); // Describe Success
+        
+        describe("Failure", () => {
+            it("rejects insufficient amounts", async() => {
+                const { token, deployer, receiver, exchange } = await loadFixture(transferFromTokenFixture);
+                
+                const INVALID_AMOUNT = tokens(100000000);
+                const ERROR = "Token: Insufficient Funds";
+                
+                await (await token.connect(deployer).approve(exchange.address, INVALID_AMOUNT)).wait();
+                await expect(token.connect(exchange)
+                    .transferFrom(deployer.address, receiver.address, INVALID_AMOUNT))
+                    .to.be.revertedWith(ERROR);                
+            });
+
+            it("rejects insufficient allowance", async() => {
+                const { token, deployer, receiver, exchange } = await loadFixture(transferFromTokenFixture);
+                
+                const ALLOWANCE_AMOUNT = tokens(100);
+                const INVALID_AMOUNT = tokens(100000);
+                const ERROR = "Token: Insufficient Allowance";
+                
+                await (await token.connect(deployer).approve(exchange.address, ALLOWANCE_AMOUNT)).wait();
+                await expect(token.connect(exchange)
+                    .transferFrom(deployer.address, receiver.address, INVALID_AMOUNT))
+                    .to.be.revertedWith(ERROR);                
+            });
+        }); // Describe Failure
+    }); // Describe Delegating Token Transfers
     
 }); // Describe Token
