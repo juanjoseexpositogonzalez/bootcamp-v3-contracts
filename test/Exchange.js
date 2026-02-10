@@ -1,8 +1,12 @@
 const { loadFixture, dropTransaction } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
 const { expect } = require("chai");
-const { ethers } = require("hardhat");
+const { ethers, userConfig } = require("hardhat");
 
-const { deployExchangeFixture, depositExchangeFixture } = require("./helpers/ExchangeFixtures")
+const {
+    deployExchangeFixture,
+    depositExchangeFixture,
+    orderExchangeFixture 
+} = require("./helpers/ExchangeFixtures")
 
 const tokens = (n) => {
     return ethers.parseUnits(n.toString(), 18);
@@ -113,4 +117,145 @@ describe("Exchange", () => {
         });  // Describe Failure
        
     }); // Describe Withdrawing Tokens
+
+    describe("Making Orders", () => {
+        describe("Success", () => {
+            it("tracks the newly created order", async () => {
+                const { exchange } = await loadFixture(orderExchangeFixture);
+
+                expect(await exchange.orderCount()).to.equal(1);
+
+            });
+
+            it("correctly updates user active balance", async() => {
+                const { tokens: { token0 }, exchange, accounts, transaction } = await loadFixture(orderExchangeFixture);
+                
+                const AMOUNT = tokens(1);
+
+                expect(await exchange.activeBalanceOf(await token0.getAddress(), accounts.user1.address))
+                    .to.equal(AMOUNT);
+
+            });
+
+            it("emits a OrderCreated event", async () => {
+                const { tokens: { token0, token1 }, exchange, accounts, transaction } = await loadFixture(orderExchangeFixture);
+
+                const ORDER_ID = 1;
+                const AMOUNT = tokens(1);
+                const { timestamp } = await ethers.provider.getBlock()
+
+                
+                await expect(transaction).to.emit(exchange, "OrderCreated")
+                    .withArgs(
+                        ORDER_ID,
+                        accounts.user1.address,
+                        await token1.getAddress(),
+                        AMOUNT,
+                        await token0.getAddress(),
+                        AMOUNT,
+                        timestamp                        
+                    );
+            });
+
+        }); // Describe Success
+
+        describe("Failure", () => {
+            it("rejects with no balance", async() => {
+                const { tokens: { token0, token1 }, exchange, accounts } = await loadFixture(deployExchangeFixture);
+                const ERROR = "Exchange: Insufficient balance";
+
+                await expect(exchange.connect(accounts.user1).makeOrder(
+                    await token1.getAddress(),
+                    tokens(1),
+                    await token0.getAddress(),
+                    tokens(1)
+                )).to.be.revertedWith(ERROR);
+            });
+
+            it("rejects orders over user's balance", async() => {
+                const { tokens: { token0, token1 }, exchange, accounts } = await loadFixture(orderExchangeFixture);
+                const ERROR = "Exchange: Insufficient balance";
+
+                await expect(exchange.connect(accounts.user1).makeOrder(
+                    await token1.getAddress(),
+                    tokens(100),
+                    await token0.getAddress(),
+                    tokens(100)
+                )).to.be.revertedWith(ERROR);
+            });
+
+        });  // Describe Failure
+       
+    }); // Describe Making Orders
+
+    describe("Cancelling Orders", () => {
+        describe("Success", () => {
+            it("updates cancelled orders", async () => {
+                const { exchange, accounts } = await loadFixture(orderExchangeFixture);
+                
+                const transaction = await exchange.connect(accounts.user1).cancelOrder(1);
+                await transaction.wait();
+
+                expect(await exchange.isOrderCancelled(1)).to.equal(true);
+
+            });
+
+            it("correctly updates user active balance", async() => {
+                const { tokens: { token0 }, exchange, accounts } = await loadFixture(orderExchangeFixture);
+                
+                const transaction = await exchange.connect(accounts.user1).cancelOrder(1);
+                await transaction.wait();
+
+                expect(await exchange.activeBalanceOf(await token0.getAddress(), accounts.user1.address))
+                    .to.equal(0);
+
+            });
+
+            it("emits a OrderCancelled event", async () => {
+                const { tokens: { token0, token1 }, exchange, accounts } = await loadFixture(orderExchangeFixture);
+                
+                const transaction = await exchange.connect(accounts.user1).cancelOrder(1);
+                await transaction.wait();
+
+                const ORDER_ID = 1;
+                const AMOUNT = tokens(1);                
+                const { timestamp } = await ethers.provider.getBlock()
+
+                await expect(transaction).to.emit(exchange, "OrderCancelled")
+                    .withArgs(
+                        ORDER_ID,
+                        accounts.user1.address,
+                        await token1.getAddress(),
+                        AMOUNT,
+                        await token0.getAddress(),
+                        AMOUNT,
+                        timestamp                        
+                    );
+            });
+
+        }); // Describe Success
+
+        describe("Failure", () => {
+            it("rejects with invalid order ids", async() => {
+                const { exchange, accounts } = await loadFixture(deployExchangeFixture);
+                const ERROR = "Exchange: Order does not exist";
+
+                await expect(exchange.connect(accounts.user1).cancelOrder(
+                    9999
+                )).to.be.revertedWith(ERROR);
+            });
+
+            it("rejects unathorized cancellations", async() => {
+                const { exchange, accounts } = await loadFixture(orderExchangeFixture);
+                const ERROR = "Exchange: Not the owner";
+
+                await expect(exchange.connect(accounts.user2).cancelOrder(
+                    1
+                )).to.be.revertedWith(ERROR);
+            });
+
+        });  // Describe Failure
+       
+    }); // Describe Cancelling Orders
+
 }); // Describe Exchange
